@@ -28,9 +28,9 @@ async def run_agent(user_message: str, chat_history: list = []) -> str:
     """
 
     server_params = StdioServerParameters(
-        command=sys.executable,           # "python" ki jagah, venv wala Python
+        command=sys.executable,          
         args=["-m", "mcp_server.server"],
-        env={**os.environ},               # token/keys subprocess tak pahunchane ke liye
+        env={**os.environ},               
     )
     
     async with stdio_client(server_params) as (read, write):
@@ -47,46 +47,60 @@ async def run_agent(user_message: str, chat_history: list = []) -> str:
             # Build chat with history
             chat = model.start_chat(history=chat_history)
 
+
             # Send user message to Gemini
             response = await asyncio.to_thread(chat.send_message, user_message)
 
-            # Check if Gemini wants to call a tool
             final_response = ""
 
-            for part in response.parts:
-                # Gemini is calling a tool
-                if hasattr(part, 'function_call') and part.function_call.name:
-                    tool_name = part.function_call.name
-                    tool_args = dict(part.function_call.args)
+            # Keep handling tool calls until Gemini gives a text response
+            while True:
+                function_calls = []
 
-                    print(f"\n🔧 Calling MCP tool: {tool_name} with args: {tool_args}")
+                for part in response.parts:
+                    if hasattr(part, 'function_call') and part.function_call.name:
+                        function_calls.append(part.function_call)
 
-                    # Call the MCP server tool
+                # If there are no more tool calls, get final text
+                if not function_calls:
+                    text_parts = []
+
+                    for part in response.parts:
+                        if hasattr(part, 'text') and part.text:
+                            text_parts.append(part.text)
+
+                    final_response = "\n".join(text_parts)
+                    break
+
+                function_response_parts = []
+
+                # Execute every requested MCP tool
+                for function_call in function_calls:
+                    tool_name = function_call.name
+                    tool_args = dict(function_call.args)
+
+                    print(f"\nCalling MCP tool: {tool_name} with args: {tool_args}")
+
                     mcp_result = await session.call_tool(tool_name, tool_args)
 
-                    # Get the text result from MCP
                     tool_result_text = mcp_result.content[0].text
 
-                    # Send tool result back to Gemini for final answer
-                    tool_response = await asyncio.to_thread(
-                        chat.send_message,
-                        genai.protos.Content(
-                            parts=[
-                                genai.protos.Part(
-                                    function_response=genai.protos.FunctionResponse(
-                                        name=tool_name,
-                                        response={"result": tool_result_text}
-                                    )
-                                )
-                            ]
+                    function_response_parts.append(
+                        genai.protos.Part(
+                            function_response=genai.protos.FunctionResponse(
+                                name=tool_name,
+                                response={"result": tool_result_text}
+                            )
                         )
                     )
 
-                    final_response = tool_response.text
-
-                # Gemini responded directly without tool
-                elif hasattr(part, 'text') and part.text:
-                    final_response = part.text
+                # Send tool results back to Gemini
+                response = await asyncio.to_thread(
+                    chat.send_message,
+                    genai.protos.Content(
+                        parts=function_response_parts
+                    )
+                )
 
             return final_response if final_response else "Sorry bro, I couldn't process that."
 
