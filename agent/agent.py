@@ -27,7 +27,7 @@ async def run_agent(user_message: str, chat_history: list = []) -> str:
     4. Return final response
     """
 
-        server_params = StdioServerParameters(
+    server_params = StdioServerParameters(
         command=sys.executable,           # "python" ki jagah, venv wala Python
         args=["-m", "mcp_server.server"],
         env={**os.environ},               # token/keys subprocess tak pahunchane ke liye
