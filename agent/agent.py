@@ -39,7 +39,7 @@ async def run_agent(user_message: str, chat_history: list = []) -> str:
 
             # Set up Gemini model with tools
             model = genai.GenerativeModel(
-                model_name="gemini-3.8-flash",
+                model_name="gemini-3.5-flash-lite",
                 tools=get_gemini_tools(),
                 system_instruction=SYSTEM_PROMPT
             )
