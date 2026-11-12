@@ -1,6 +1,6 @@
 import asyncio
 import json
-from mcp.server import Server
+from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 from mcp import types
 from mcp_server.github_api import (
