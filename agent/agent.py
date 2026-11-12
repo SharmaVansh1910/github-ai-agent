@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import sys
 import google.generativeai as genai
 from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters
@@ -26,11 +27,12 @@ async def run_agent(user_message: str, chat_history: list = []) -> str:
     4. Return final response
     """
 
-    server_params = StdioServerParameters(
-        command="python",
+        server_params = StdioServerParameters(
+        command=sys.executable,           # "python" ki jagah, venv wala Python
         args=["-m", "mcp_server.server"],
+        env={**os.environ},               # token/keys subprocess tak pahunchane ke liye
     )
-
+    
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
